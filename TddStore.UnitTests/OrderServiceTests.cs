@@ -2,6 +2,7 @@
 using System;
 using System.Linq;
 using TddStore.Core;
+using TddStore.Core.Exceptions;
 using Telerik.JustMock;
 
 
@@ -10,6 +11,16 @@ namespace TddStore.UnitTests
     [TestFixture]
     public class OrderServiceTests
     {
+        private OrderService _orderService;
+        private IOrderDataService _orderDataService;
+
+        [SetUp]
+        public void SetupTestFixture()
+        {
+            _orderDataService = Mock.Create<IOrderDataService>();
+            _orderService = new OrderService(_orderDataService);
+        }
+
         [Test]
         public void WhenUserPlacesACorrectOrderThenAnOrderNumberShouldBeReturned()
         {
@@ -18,23 +29,39 @@ namespace TddStore.UnitTests
             var customerId = Guid.NewGuid();
             var expectedOrderId = Guid.NewGuid();
 
-            // creates the mocked interface to use in OrderService
-            var orderDataService = Mock.Create<IOrderDataService>();
+            Mock.Arrange(() => _orderDataService.Save(Arg.IsAny<Order>()))
+                .Returns(expectedOrderId)
+                .OccursOnce();
 
-            /*
-            makes mock object into stub that responds to calls to Save method
-            --> getting 'Matcher' which tells arrangement that I'm not concerned with
-            specifics of a parameter, I just want to define a behvior for params that 
-            meet a certain pattern
-            --> elevates Dummy mock object to a Stub responding to a method call
-            */
-            Mock.Arrange(() => orderDataService.Save(Arg.IsAny<Order>())).Returns(expectedOrderId);
+            //OrderService orderService = new OrderService(orderDataService);
 
-            OrderService orderService = new OrderService(orderDataService);
-
-            var result = orderService.PlaceOrder(customerId, shoppingCart);
+            var result = _orderService.PlaceOrder(customerId, shoppingCart);
 
             Assert.AreEqual(expectedOrderId, result);
+            // calls to Mock to verify that its rules have been followed
+            Mock.Assert(_orderDataService);
+        }
+
+        [Test]
+        public void WhenAUserAttemptsToOrderAnItemWithAQuantityOfZero_ThrowInvalidOrderException()
+        {
+            // Arrange
+            var shoppingCart = new ShoppingCart();
+            shoppingCart.Items.Add(new ShoppingCartItem { ItemId = Guid.NewGuid(), Quantity = 0 });
+            var customerId = Guid.NewGuid();
+            var expectedOrderId = Guid.NewGuid();
+
+            Mock.Arrange(() => _orderDataService.Save(Arg.IsAny<Order>()))
+                .Returns(expectedOrderId)
+                .OccursNever();
+
+            // Act
+           // _orderService.PlaceOrder(customerId, shoppingCart);
+            
+            // Assert
+            Assert.Throws<InvalidOrderException>(() => _orderService.PlaceOrder(customerId, shoppingCart));
+            Mock.Assert(_orderDataService);
+
         }
 
 
