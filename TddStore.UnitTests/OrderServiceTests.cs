@@ -14,12 +14,14 @@ namespace TddStore.UnitTests
         private OrderService _orderService;
         private IOrderDataService _orderDataService;
         private ICustomerService _customerService;
+        private IOrderFulfillmentService _orderFulfillmentService;
 
         [SetUp]
         public void SetupTestFixture()
         {
             _orderDataService = Mock.Create<IOrderDataService>();
             _customerService = Mock.Create<ICustomerService>();
+            _orderFulfillmentService = Mock.Create<IOrderFulfillmentService>();
             _orderService = new OrderService(_orderDataService, _customerService);
         }
 
@@ -94,6 +96,38 @@ namespace TddStore.UnitTests
 
             // Assert
             Mock.Assert(_customerService);
+        }
+        [Test]
+        public void WhenUserPlacesOrderWithItemThatIsInInventoryOrderFulfillmentWorkflowShouldComplete()
+        {
+            //Arrange
+            var shoppingCart = new ShoppingCart();
+            shoppingCart.Items.Add(new ShoppingCartItem { ItemId = Guid.NewGuid(), Quantity = 1 });
+            var customerId = Guid.NewGuid();
+            var customer = new Customer { Id = customerId };
+            var orderFulfillmentSessionId = Guid.NewGuid();
+
+             Mock.Arrange(() => _customerService.GetCustomer(customerId)).Returns(customer).OccursOnce();
+
+            Mock.Arrange(() => _orderFulfillmentService.OpenSession(Arg.IsAny<string>(), Arg.IsAny<string>()))
+                .Returns(orderFulfillmentSessionId)
+                .InOrder();
+            Mock.Arrange(() => _orderFulfillmentService.IsInInventory(orderFulfillmentSessionId, itemId, 1))
+                .Returns(true)
+                .InOrder();
+            Mock.Arrange(() => 
+                _orderFulfillmentService.
+                    PlaceOrder(orderFulfillmentSessionId, Arg.IsAny<IDictionary<Guid, int>>(), Arg.IsAny<string>()))
+                .Returns(true)
+                .InOrder();
+            Mock.Arrange(() => _orderFulfillmentService.CloseSession(orderFulfillmentSessionId))
+                .InOrder();
+
+            //Act
+            _orderService.PlaceOrder(customerId, shoppingCart);
+
+            //Assert
+            Mock.Assert(_orderFulfillmentService);
         }
 
 
